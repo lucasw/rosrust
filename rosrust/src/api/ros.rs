@@ -17,6 +17,7 @@ use error_chain::bail;
 use log::error;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::env;
 use std::sync::Arc;
 use std::thread::sleep;
 use xml_rpc;
@@ -33,6 +34,7 @@ pub struct Ros {
     static_subs: Vec<Subscriber>,
     logger: Option<Publisher<Log>>,
     shutdown_manager: Arc<ShutdownManager>,
+    rosconsole_format: String,
 }
 
 impl Ros {
@@ -113,6 +115,9 @@ impl Ros {
         )?;
         let master = Master::new(master_uri, &name, slave.uri())?;
 
+        let default_format = "[${severity}][${time} ${file}:${line} ${node}]: ${message}";
+        let rosconsole_format = env::var("ROSCONSOLE_FORMAT").unwrap_or(default_format.to_string());
+
         Ok(Ros {
             master: Arc::new(master),
             slave: Arc::new(slave),
@@ -124,6 +129,7 @@ impl Ros {
             static_subs: Vec::new(),
             logger: None,
             shutdown_manager,
+            rosconsole_format,
         })
     }
 
@@ -357,8 +363,19 @@ impl Ros {
     fn log_to_terminal(&self, level: i8, msg: &str, file: &str, line: u32) {
         use colored::{Color, Colorize};
 
+        let cur_time = self.now().seconds();
+        // TODO(lucasw) are all these replaces expensive?
+        let text = str::replace(&self.rosconsole_format, "${time}", &format!("{:.3}", cur_time));
+        let text = str::replace(&text, "${file}", file);
+        // TODO(lucasw) shorten the filename to less than n characters, prefixe spaces if shorter
+        let text = str::replace(&text, "${shortfile}", file);
+        let text = str::replace(&text, "${line}", &format!("{}", line));
+        let text = str::replace(&text, "${node}", &self.name);
+        let text = str::replace(&text, "${message}", msg);
+
         let format_string =
-            |prefix, color| format!("[{} @ {}:{}]: {}", prefix, file, line, msg).color(color);
+            |prefix, color| str::replace(&text, "${severity}", prefix).color(color);
+
 
         match level {
             Log::DEBUG => println!("{}", format_string("DEBUG", Color::White)),
