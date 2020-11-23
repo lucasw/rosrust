@@ -22,14 +22,10 @@ jobs:
       - name: rosrust
         uses: actions/checkout@v1
       - name: Install latest rust
-        uses: actions-rs/toolchain@v1
-        with:
-            toolchain: stable
-            override: true
-            components: rustfmt, clippy
-      - name: rust version
         run: |
+            curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh -s -- -y
             rustc --version
+            cargo --version
       - name: Configure ROS for install
         run: |
             sudo sh -c "echo \"deb http://packages.ros.org/ros/ubuntu $ROS_CI_DESKTOP main\" > /etc/apt/sources.list.d/ros-latest.list"
@@ -51,7 +47,7 @@ jobs:
             rosdep update  # --include-eol-distros  # Support EOL distros.
       - name: Install ROS additional packages (TODO maybe don't need these)
         # Does installing these mean rosrust_msg builds more messages, which is a better
-        # check?
+        # check?  Or does it just slow down the action?
         run: |
             sudo apt-get install -y ros-$ROS_DISTRO-actionlib
             sudo apt-get install -y ros-$ROS_DISTRO-actionlib-msgs
